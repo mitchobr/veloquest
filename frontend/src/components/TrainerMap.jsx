@@ -19,8 +19,7 @@ const EW  = 680   // elevation strip SVG viewBox width (stretches via preserveAs
 const EH  = 74    // elevation strip height (px)
 const RS  = 15    // reveal duration (seconds)
 const AP  = 0.12  // approach threshold (fraction of route — thumbnail starts growing)
-const AR  = 0.03  // arrival threshold (fraction of route — reveal triggers, sim mode only)
-const PH  = 272   // reveal panel height (px)
+const AR  = 0.03  // arrival threshold (fraction of route — reveal triggers)
 
 // ─── Milestones ────────────────────────────────────────────────────────────────
 
@@ -290,11 +289,19 @@ export default function TrainerMap() {
 
   const nextMilestone = msWithT.find(m => !done.has(m.id) && m.id !== revealId && m.t > riderT)
 
-  // Panel burst origin — from the milestone's pixel position on the map
-  const mapH = leafletMapRef.current?.getContainer().offsetHeight ?? 340
-  const panelOrigin = panelMilestone && msPx[panelMilestone.id]
-    ? { x: msPx[panelMilestone.id].x, y: msPx[panelMilestone.id].y - (mapH - PH) }
-    : { x: 400, y: PH / 2 }
+  // Panel burst origin — thumbnail viewport position minus panel top-left (10vw / 10vh)
+  // so the spring-scale animation appears to grow out of the thumbnail
+  const mapRect = leafletMapRef.current?.getContainer().getBoundingClientRect() ?? null
+  const panelOrigin = (() => {
+    const px = panelMilestone && msPx[panelMilestone.id]
+    if (px && mapRect) {
+      return {
+        x: px.x + mapRect.left - window.innerWidth  * 0.1,
+        y: px.y + mapRect.top  - window.innerHeight * 0.1,
+      }
+    }
+    return { x: window.innerWidth * 0.4, y: window.innerHeight * 0.4 }
+  })()
 
   // Elevation strip data — real from route, or placeholder
   // Uses elevWidth (measured via ResizeObserver) so SVG coords match rendered pixels — no distortion
@@ -512,77 +519,6 @@ export default function TrainerMap() {
           </div>
         )}
 
-        {/* Reveal panel —
-            Scales out from the thumbnail's pixel position via transform-origin.
-            panelMilestone persists after revealId clears to allow scale-out animation. */}
-        {panelMilestone && (
-          <div
-            onClick={dismiss}
-            style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0, height: PH,
-              cursor: 'pointer', overflow: 'hidden', borderRadius: 6,
-              transform: revealIn ? 'scale(1)' : 'scale(0)',
-              transformOrigin: `${panelOrigin.x}px ${panelOrigin.y}px`,
-              opacity: revealIn ? 1 : 0,
-              transition: 'transform .48s cubic-bezier(.34,1.45,.64,1), opacity .22s ease',
-              pointerEvents: 'auto',
-            }}
-          >
-            {/* Full-bleed landmark photo */}
-            <img
-              src={panelMilestone.img} alt={panelMilestone.name}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              onError={e => { e.target.style.display = 'none'; e.target.parentNode.style.background = panelMilestone.color + '33' }}
-            />
-
-            {/* Colored accent bar at top */}
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: panelMilestone.color, zIndex: 2 }} />
-
-            {/* Dot at marker's x — visual thread from thumbnail to panel */}
-            <div style={{
-              position: 'absolute', top: -3, left: panelOrigin.x - 6,
-              width: 12, height: 12, borderRadius: '50%',
-              background: panelMilestone.color,
-              border: '2px solid rgba(255,255,255,.3)',
-              zIndex: 3,
-            }} />
-
-            {/* Text overlay */}
-            <div style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              background: 'rgba(5,8,14,.92)',
-              padding: '10px 20px 14px',
-              zIndex: 2,
-            }}>
-              <div style={{ color: panelMilestone.color, fontSize: 10, letterSpacing: '.14em', fontWeight: 700, marginBottom: 3 }}>
-                ● MILESTONE · {panelMilestone.distKm.toFixed(1)} km
-              </div>
-              <div style={{ color: '#f1f5f9', fontSize: 23, fontWeight: 600, lineHeight: 1.2, marginBottom: 6 }}>
-                {panelMilestone.name}
-              </div>
-              <div style={{ color: '#aab4c2', fontSize: 11.5, lineHeight: 1.65, marginBottom: 4 }}>
-                {panelMilestone.fact}
-              </div>
-              <div style={{ color: '#334155', fontSize: 9, marginBottom: 8 }}>
-                {panelMilestone.imageCredit}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                <span style={{ color: '#334155', fontSize: 10 }}>tap to continue · auto in</span>
-                <span style={{ color: panelMilestone.color, fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>
-                  {Math.ceil(revealSec)}s
-                </span>
-              </div>
-              <div style={{ height: 3, background: '#1e293b', borderRadius: 2 }}>
-                <div style={{
-                  height: '100%', background: panelMilestone.color,
-                  width: `${(revealSec / RS) * 100}%`,
-                  borderRadius: 2, transition: 'width .15s linear',
-                }} />
-              </div>
-            </div>
-          </div>
-        )}
-
         </div>{/* end overlay container */}
       </div>
 
@@ -697,6 +633,86 @@ export default function TrainerMap() {
           Paris · Seine · {totalKm.toFixed(0)} km
         </span>
       </div>
+
+      {/* ── Reveal modal ──────────────────────────────────────────────────────────
+          Fixed at 80% viewport so it covers the full UI. Scales out from the
+          thumbnail's viewport position via transform-origin spring animation.
+          Lives outside the map overlay to avoid Leaflet stacking-context limits. */}
+      {panelMilestone && (
+        <>
+          {/* Dim backdrop */}
+          <div
+            onClick={dismiss}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.72)',
+              opacity: revealIn ? 1 : 0,
+              transition: 'opacity .3s ease',
+              zIndex: 9998,
+            }}
+          />
+
+          {/* Modal panel */}
+          <div
+            onClick={dismiss}
+            style={{
+              position: 'fixed',
+              top: '10vh', left: '10vw', width: '80vw', height: '80vh',
+              cursor: 'pointer', overflow: 'hidden', borderRadius: 14,
+              boxShadow: '0 32px 80px rgba(0,0,0,.85)',
+              transform: revealIn ? 'scale(1)' : 'scale(0)',
+              transformOrigin: `${panelOrigin.x}px ${panelOrigin.y}px`,
+              opacity: revealIn ? 1 : 0,
+              transition: 'transform .48s cubic-bezier(.34,1.45,.64,1), opacity .22s ease',
+              zIndex: 9999,
+            }}
+          >
+            {/* Full-bleed photo */}
+            <img
+              src={panelMilestone.img} alt={panelMilestone.name}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              onError={e => { e.target.style.display = 'none'; e.target.parentNode.style.background = panelMilestone.color + '33' }}
+            />
+
+            {/* Colored accent bar at top */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: panelMilestone.color, zIndex: 2 }} />
+
+            {/* Text overlay — gradient scrim at bottom */}
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              background: 'linear-gradient(to bottom, transparent 0%, rgba(5,8,14,.55) 28%, rgba(5,8,14,.96) 100%)',
+              padding: '56px 32px 28px',
+              zIndex: 2,
+            }}>
+              <div style={{ color: panelMilestone.color, fontSize: 11, letterSpacing: '.14em', fontWeight: 700, marginBottom: 6 }}>
+                ● MILESTONE · {panelMilestone.distKm.toFixed(1)} km
+              </div>
+              <div style={{ color: '#f1f5f9', fontSize: 34, fontWeight: 700, lineHeight: 1.15, marginBottom: 10 }}>
+                {panelMilestone.name}
+              </div>
+              <div style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 1.72, marginBottom: 8 }}>
+                {panelMilestone.fact}
+              </div>
+              <div style={{ color: '#475569', fontSize: 10, marginBottom: 14 }}>
+                {panelMilestone.imageCredit}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ color: '#64748b', fontSize: 11 }}>tap anywhere to continue · auto in</span>
+                <span style={{ color: panelMilestone.color, fontSize: 13, fontFamily: 'monospace', fontWeight: 600 }}>
+                  {Math.ceil(revealSec)}s
+                </span>
+              </div>
+              <div style={{ height: 3, background: '#1e293b', borderRadius: 2 }}>
+                <div style={{
+                  height: '100%', background: panelMilestone.color,
+                  width: `${(revealSec / RS) * 100}%`,
+                  borderRadius: 2, transition: 'width .15s linear',
+                }} />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
     </div>
   )
