@@ -17,6 +17,7 @@ export function useWebSocket() {
   const [connected,      setConnected]      = useState(false)
   const [routeWaypoints, setRouteWaypoints] = useState([])
   const [routeTotalKm,   setRouteTotalKm]   = useState(0)
+  const [rideLoading,    setRideLoading]    = useState(false)
 
   const ws           = useRef(null)
   const retryDelay   = useRef(1000)
@@ -51,9 +52,13 @@ export function useWebSocket() {
         case 'ride_complete':
           setLastEvent({ ...msg, ts: Date.now() })
           break
+        case 'ride_loading':
+          setRideLoading(true)
+          break
         case 'route_loaded':
           setRouteWaypoints(msg.waypoints || [])
           setRouteTotalKm(msg.totalKm || 0)
+          setRideLoading(false)
           break
       }
     }
@@ -91,5 +96,5 @@ export function useWebSocket() {
     }
   }, [])
 
-  return { telemetry, trainerStatus, lastEvent, sendMessage, connected, routeWaypoints, routeTotalKm }
+  return { telemetry, trainerStatus, lastEvent, sendMessage, connected, routeWaypoints, routeTotalKm, rideLoading }
 }

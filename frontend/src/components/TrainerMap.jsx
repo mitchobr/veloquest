@@ -155,8 +155,13 @@ function SmoothRider({ targetLatLng }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function TrainerMap() {
-  const { telemetry, trainerStatus, lastEvent, sendMessage, routeWaypoints, routeTotalKm } = useWebSocket()
+export default function TrainerMap({ rideId, onBack }) {
+  const { telemetry, trainerStatus, lastEvent, sendMessage, routeWaypoints, routeTotalKm, rideLoading } = useWebSocket()
+
+  // Request the selected ride from the backend on mount
+  useEffect(() => {
+    if (rideId) sendMessage({ type: 'load_ride', rideId })
+  }, [rideId]) // eslint-disable-line react-hooks/exhaustive-deps
   const isLive = telemetry !== null
 
   const totalKm = routeTotalKm || 16.053
@@ -172,6 +177,7 @@ export default function TrainerMap() {
   const [revealIn,       setRevealIn]       = useState(false)
   const [panelMilestone, setPanelMilestone] = useState(null)
   const [tick,           setTick]           = useState(0)
+  const [rideComplete,   setRideComplete]   = useState(null)  // null | ride_complete event payload
 
   // Leaflet map ref + milestone pixel positions
   const leafletMapRef = useRef(null)
@@ -260,6 +266,7 @@ export default function TrainerMap() {
       }
     } else if (lastEvent.type === 'ride_complete') {
       setPlaying(false); r.playing = false
+      setRideComplete(lastEvent)
     }
   }, [lastEvent])
 
@@ -765,6 +772,69 @@ export default function TrainerMap() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Loading overlay — shown while backend is fetching elevation ── */}
+      {rideLoading && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10000,
+          background: 'rgba(5,8,14,.92)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 16,
+        }}>
+          <div style={{ fontSize: 40, opacity: 0.5 }}>🗺️</div>
+          <div style={{ color: '#e6edf3', fontSize: 18, fontWeight: 600 }}>Loading ride…</div>
+          <div style={{ color: '#8b949e', fontSize: 13 }}>Fetching elevation data</div>
+        </div>
+      )}
+
+      {/* ── Ride complete overlay ── */}
+      {rideComplete && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10000,
+          background: 'rgba(5,8,14,.92)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 20,
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+        }}>
+          <div style={{ fontSize: 56 }}>🏁</div>
+          <div style={{ color: '#f59e0b', fontSize: 28, fontWeight: 800, letterSpacing: -0.5 }}>
+            Ride Complete!
+          </div>
+
+          {/* Stats grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px 32px', marginTop: 8 }}>
+            {[
+              { label: 'Distance',   value: rideComplete.distKm ? `${rideComplete.distKm.toFixed(1)} km` : '—' },
+              { label: 'Time',       value: (() => {
+                const s = rideComplete.durationS || 0
+                const m = Math.floor(s / 60), sec = Math.floor(s % 60)
+                return s ? `${m}:${String(sec).padStart(2,'0')}` : '—'
+              })() },
+              { label: 'Avg Power',  value: rideComplete.avgPowerW ? `${rideComplete.avgPowerW} W` : '—' },
+              { label: 'Avg Speed',  value: rideComplete.avgSpeedKmh ? `${rideComplete.avgSpeedKmh} km/h` : '—' },
+              { label: 'Avg Cadence',value: rideComplete.avgCadence ? `${rideComplete.avgCadence} rpm` : '—' },
+              { label: 'Landmarks',  value: `${(rideComplete.milestonesReached || []).length} / ${MILESTONES.length}` },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ textAlign: 'center' }}>
+                <div style={{ color: '#475569', fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
+                <div style={{ color: '#e6edf3', fontSize: 20, fontWeight: 700, fontFamily: 'monospace' }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={onBack}
+            style={{
+              marginTop: 12, padding: '13px 36px',
+              background: '#f59e0b', color: '#0d1117',
+              border: 'none', borderRadius: 10,
+              fontSize: 15, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Select New Ride
+          </button>
+        </div>
       )}
 
     </div>
