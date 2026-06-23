@@ -102,7 +102,14 @@ function MapSync({ onReady }) {
 function RiderFollower({ position }) {
   const map = useMap()
   useEffect(() => {
-    if (position) map.panTo(position, { animate: true, duration: 0.25 })
+    if (!position) return
+    try {
+      const cur = map.latLngToContainerPoint(map.getCenter())
+      const tgt = map.latLngToContainerPoint(position)
+      if (Math.hypot(tgt.x - cur.x, tgt.y - cur.y) > 12) {
+        map.panTo(position, { animate: true, duration: 1.2, easeLinearity: 0.5 })
+      }
+    } catch { /* map not ready */ }
   }, [map, position])
   return null
 }
@@ -130,6 +137,17 @@ export default function TrainerMap() {
   // Leaflet map ref + milestone pixel positions
   const leafletMapRef = useRef(null)
   const [msPx,           setMsPx]           = useState({})
+
+  // Elevation strip — measure actual rendered width to avoid non-uniform SVG scaling
+  const elevContainerRef = useRef(null)
+  const [elevWidth,      setElevWidth]      = useState(680)
+  useEffect(() => {
+    const el = elevContainerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => setElevWidth(entries[0].contentRect.width))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // Mutable ref bag for animation loop — avoids stale closure issues with RAF
   const r = useRef({
@@ -278,23 +296,25 @@ export default function TrainerMap() {
     : { x: 400, y: PH / 2 }
 
   // Elevation strip data — real from route, or placeholder
+  // Uses elevWidth (measured via ResizeObserver) so SVG coords match rendered pixels — no distortion
   const elevPts = useMemo(() => {
+    const W = elevWidth
     if (routeWaypoints.length > 1) {
       const elevs = routeWaypoints.map(w => w.elevation_m)
       const eMin  = Math.min(...elevs)
       const eMax  = Math.max(...elevs)
       const range = eMax - eMin || 1
       return routeWaypoints.map(w => [
-        (w.dist_m / (totalKm * 1000)) * EW,
+        (w.dist_m / (totalKm * 1000)) * W,
         EH - 6 - ((w.elevation_m - eMin) / range) * (EH - 16),
       ])
     }
-    return ELEV_PLACEHOLDER.map(([t, e]) => [t * EW, EH - 6 - (e / 100) * (EH - 16)])
-  }, [routeWaypoints, totalKm])
+    return ELEV_PLACEHOLDER.map(([t, e]) => [t * W, EH - 6 - (e / 100) * (EH - 16)])
+  }, [routeWaypoints, totalKm, elevWidth])
 
   const elevLine = elevPts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ')
-  const elevArea = `${elevLine} L${EW} ${EH} L0 ${EH} Z`
-  const rX = riderT * EW
+  const elevArea = `${elevLine} L${elevWidth} ${EH} L0 ${EH} Z`
+  const rX = riderT * elevWidth
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
@@ -411,7 +431,10 @@ export default function TrainerMap() {
           © OpenStreetMap contributors
         </div>
 
-        {/* ── Milestone thumbnails — absolute overlay ── */}
+        {/* ── Overlay container: above all Leaflet panes (tile pane=200, overlay=400, marker=600, control=800) ── */}
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, pointerEvents: 'none' }}>
+
+        {/* Milestone thumbnails */}
         {msWithT.map(m => {
           const px         = msPx[m.id]
           if (!px) return null
@@ -427,7 +450,7 @@ export default function TrainerMap() {
           else                               { sz = 30; proximity = 0 }
 
           return (
-            <div key={m.id}>
+            <div key={m.id} style={{ pointerEvents: 'auto' }}>
               {/* Circular thumbnail */}
               <div style={{
                 position: 'absolute', left: mx, top: my,
@@ -464,7 +487,6 @@ export default function TrainerMap() {
                   letterSpacing: '.04em', whiteSpace: 'nowrap',
                   opacity: proximity, pointerEvents: 'none',
                   textShadow: '0 1px 5px rgba(0,0,0,.95)',
-                  zIndex: 200,
                 }}>
                   {m.name}
                 </div>
@@ -473,7 +495,7 @@ export default function TrainerMap() {
           )
         })}
 
-        {/* ── Next milestone chip ── */}
+        {/* Next milestone chip */}
         {nextMilestone && !revealId && (
           <div style={{
             position: 'absolute', bottom: 10, left: '50%',
@@ -481,8 +503,7 @@ export default function TrainerMap() {
             background: 'rgba(8,12,20,.9)',
             border: `0.5px solid ${nextMilestone.color}44`,
             borderRadius: 7, padding: '4px 10px',
-            color: '#475569', fontSize: 11, zIndex: 500,
-            pointerEvents: 'none',
+            color: '#475569', fontSize: 11,
           }}>
             Next:{' '}
             <span style={{ color: nextMilestone.color, fontWeight: 600 }}>{nextMilestone.name}</span>
@@ -490,7 +511,7 @@ export default function TrainerMap() {
           </div>
         )}
 
-        {/* ── Reveal panel ──
+        {/* Reveal panel —
             Scales out from the thumbnail's pixel position via transform-origin.
             panelMilestone persists after revealId clears to allow scale-out animation. */}
         {panelMilestone && (
@@ -503,7 +524,7 @@ export default function TrainerMap() {
               transformOrigin: `${panelOrigin.x}px ${panelOrigin.y}px`,
               opacity: revealIn ? 1 : 0,
               transition: 'transform .48s cubic-bezier(.34,1.45,.64,1), opacity .22s ease',
-              zIndex: 100,
+              pointerEvents: 'auto',
             }}
           >
             {/* Full-bleed landmark photo */}
@@ -560,19 +581,20 @@ export default function TrainerMap() {
             </div>
           </div>
         )}
+
+        </div>{/* end overlay container */}
       </div>
 
       {/* ── Elevation strip ── */}
-      <div style={{ flex: '0 0 auto', background: '#0a0f1a', borderTop: '1px solid #1e293b' }}>
+      <div ref={elevContainerRef} style={{ flex: '0 0 auto', background: '#0a0f1a', borderTop: '1px solid #1e293b' }}>
         <svg
-          width="100%" height={EH}
-          viewBox={`0 0 ${EW} ${EH}`}
-          preserveAspectRatio="none"
-          style={{ display: 'block' }}
+          width={elevWidth} height={EH}
+          viewBox={`0 0 ${elevWidth} ${EH}`}
+          style={{ display: 'block', width: '100%' }}
         >
           <defs>
-            <clipPath id="elev-done">  <rect x={0}  y={0} width={rX}       height={EH} /></clipPath>
-            <clipPath id="elev-ahead"> <rect x={rX} y={0} width={EW - rX}  height={EH} /></clipPath>
+            <clipPath id="elev-done">  <rect x={0}  y={0} width={rX}              height={EH} /></clipPath>
+            <clipPath id="elev-ahead"> <rect x={rX} y={0} width={elevWidth - rX}  height={EH} /></clipPath>
           </defs>
 
           <path d={elevArea} fill="#1e3a5f" opacity={0.4}  clipPath="url(#elev-ahead)" />
@@ -581,7 +603,7 @@ export default function TrainerMap() {
           <path d={elevLine} fill="none" stroke="#f59e0b" strokeWidth={1.5} clipPath="url(#elev-done)"  />
 
           {msWithT.map(m => {
-            const ex = m.t * EW
+            const ex = m.t * elevWidth
             // Find approximate elevation at this t
             const mDistM = m.t * totalKm * 1000
             let ey = EH - 10
