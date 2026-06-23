@@ -118,7 +118,9 @@ async def main() -> None:
                                         trainer=trainer, session=session,
                                         latest_ref=latest_ref)
                 except Exception as e:
-                    log.error("Trainer error: %s — switching to no-trainer mode", e)
+                    import traceback
+                    log.error("Trainer error — switching to no-trainer mode:\n%s",
+                              traceback.format_exc())
                     await _run_loop(server, profile, milestones,
                                     trainer=None, session=session)
             else:
