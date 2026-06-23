@@ -15,6 +15,8 @@ export function useWebSocket() {
   const [trainerStatus,  setTrainerStatus]  = useState('disconnected')
   const [lastEvent,      setLastEvent]      = useState(null)
   const [connected,      setConnected]      = useState(false)
+  const [routeWaypoints, setRouteWaypoints] = useState([])
+  const [routeTotalKm,   setRouteTotalKm]   = useState(0)
 
   const ws           = useRef(null)
   const retryDelay   = useRef(1000)
@@ -49,7 +51,10 @@ export function useWebSocket() {
         case 'ride_complete':
           setLastEvent({ ...msg, ts: Date.now() })
           break
-        // route_loaded handled separately by TrainerMap if needed
+        case 'route_loaded':
+          setRouteWaypoints(msg.waypoints || [])
+          setRouteTotalKm(msg.totalKm || 0)
+          break
       }
     }
 
@@ -86,5 +91,5 @@ export function useWebSocket() {
     }
   }, [])
 
-  return { telemetry, trainerStatus, lastEvent, sendMessage, connected }
+  return { telemetry, trainerStatus, lastEvent, sendMessage, connected, routeWaypoints, routeTotalKm }
 }

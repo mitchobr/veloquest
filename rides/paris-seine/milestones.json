@@ -6,7 +6,9 @@
     "name": "Eiffel Tower",
     "distKm": 3.9,
     "image": "eiffel.jpg",
-    "fact": "Built as a temporary structure for the 1889 World's Fair, Gustave Eiffel's iron lattice tower was originally derided as an eyesore — today it's the world's most visited paid monument."
+    "image_credit": "© Benh LIEU SONG / Wikimedia Commons, CC BY-SA 3.0",
+    "image_license": "CC BY-SA 3.0",
+    "fact": "Built as a temporary structure for the 1889 World's Fair, Gustave Eiffel's iron lattice tower was initially derided as an eyesore — today it's the world's most visited paid monument."
   },
   {
     "id": 2,
@@ -15,6 +17,8 @@
     "name": "The Louvre",
     "distKm": 7.9,
     "image": "louvre.jpg",
+    "image_credit": "© Benh LIEU SONG / Wikimedia Commons, CC BY-SA 4.0",
+    "image_license": "CC BY-SA 4.0",
     "fact": "A royal fortress before it became a museum, the Louvre houses over 380,000 objects — at a typical visitor pace it would take nine months to see them all."
   },
   {
@@ -24,6 +28,8 @@
     "name": "Notre-Dame de Paris",
     "distKm": 11.7,
     "image": "notredame.jpg",
+    "image_credit": "© Peter Haas (P e z i) / Wikimedia Commons, CC BY-SA 3.0",
+    "image_license": "CC BY-SA 3.0",
     "fact": "After the devastating 2019 fire, Notre-Dame reopened in December 2024 following a meticulous five-year restoration that involved 2,000 craftspeople from across France."
   },
   {
@@ -33,6 +39,8 @@
     "name": "Sacré-Cœur",
     "distKm": 15.3,
     "image": "sacrecoeur.jpg",
+    "image_credit": "© Dietmar Rabich / Wikimedia Commons, CC BY-SA 4.0",
+    "image_license": "CC BY-SA 4.0",
     "fact": "Perched on the highest point in Paris at 130m above sea level, Sacré-Cœur's white travertine limestone bleaches whiter every time it rains — the stone actually self-cleans."
   }
 ]

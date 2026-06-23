@@ -93,6 +93,7 @@ async def _run_loop(
     done_ids: set[int] = set()
     paused: bool = True   # start paused — frontend sends "resume" to begin the ride
     last_grade: Optional[float] = None
+    demo_speed: float = 1.0  # no-trainer speed multiplier (1–10×), set via set_demo_speed message
 
     async def on_pause() -> None:
         nonlocal paused
@@ -104,8 +105,14 @@ async def _run_loop(
         paused = False
         log.info("Ride resumed")
 
+    async def on_speed_change(multiplier: float) -> None:
+        nonlocal demo_speed
+        demo_speed = max(1.0, min(10.0, multiplier))
+        log.info("Demo speed set to %.1f×", demo_speed)
+
     server.on_pause = on_pause
     server.on_resume = on_resume
+    server.on_speed_change = on_speed_change
 
     log.info("Starting telemetry loop (%.0fHz)%s — waiting for resume",
              TELEMETRY_HZ, " [no-trainer mode]" if trainer is None else "")
@@ -122,7 +129,7 @@ async def _run_loop(
             power_w   = data.power_w   or 0
             cadence   = data.cadence   or 0
         else:
-            speed_kmh = 25.0 if not paused else 0.0
+            speed_kmh = 25.0 * demo_speed if not paused else 0.0
             power_w   = 180  if not paused else 0
             cadence   = 85   if not paused else 0
 

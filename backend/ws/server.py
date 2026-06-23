@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import Callable, Coroutine, Optional, Set
 
 from aiohttp import web
@@ -56,10 +57,14 @@ class WebSocketServer:
         self.on_pause: Optional[AsyncCallback] = None
         self.on_resume: Optional[AsyncCallback] = None
         self.on_mode_change: Optional[Callable[[str], Coroutine]] = None
+        self.on_speed_change: Optional[Callable[[float], Coroutine]] = None
 
     async def __aenter__(self) -> "WebSocketServer":
         self._app = web.Application()
         self._app.router.add_get("/ws", self._ws_handler)
+        rides_dir = Path("rides")
+        if rides_dir.exists():
+            self._app.router.add_static("/rides", rides_dir)
         self._runner = web.AppRunner(self._app)
         await self._runner.setup()
         site = web.TCPSite(self._runner, self._host, self._port)
@@ -88,7 +93,10 @@ class WebSocketServer:
         """Pre-serialize route waypoints so they can be sent to each new client."""
         self._route_payload = json.dumps({
             "type": "route_loaded",
-            "waypoints": [{"lat": w.lat, "lng": w.lng} for w in profile.waypoints],
+            "waypoints": [
+                {"lat": w.lat, "lng": w.lng, "dist_m": w.dist_m, "elevation_m": w.elevation_m}
+                for w in profile.waypoints
+            ],
             "totalKm": profile.total_km,
             "name": profile.name,
         })
@@ -132,5 +140,8 @@ class WebSocketServer:
             case "set_resistance_mode":
                 if self.on_mode_change:
                     await self.on_mode_change(msg.get("mode", "simulation"))
+            case "set_demo_speed":
+                if self.on_speed_change:
+                    await self.on_speed_change(float(msg.get("multiplier", 1.0)))
             case other:
                 log.debug("Unhandled frontend message type: %s", other)
