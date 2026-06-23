@@ -11,8 +11,10 @@ Matches the FTMSClient interface so main.py can swap it in without changes.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import struct
+import sys
 from typing import Callable, Optional
 
 from bleak import BleakClient, BleakScanner
@@ -32,6 +34,27 @@ CSC_MEASUREMENT_UUID       = "00002a5b-0000-1000-8000-00805f9b34fb"
 WHEEL_CIRCUMFERENCE_M = 2.096
 
 
+async def _release_os_connection(address: str) -> None:
+    """
+    On Linux, BlueZ auto-reconnects to paired/bonded devices and holds the
+    connection, blocking bleak from connecting. Issue a bluetoothctl disconnect
+    first so bleak can take over.
+    """
+    if sys.platform != "linux":
+        return
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "bluetoothctl", "disconnect", address,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await asyncio.wait_for(proc.wait(), timeout=3.0)
+        await asyncio.sleep(0.8)  # give BlueZ a moment to release
+        log.debug("OS Bluetooth connection released for %s", address)
+    except Exception as e:
+        log.debug("bluetoothctl disconnect skipped: %s", e)
+
+
 class CyclingPowerClient:
     """
     Read-only trainer client for devices with Cycling Power but no FTMS.
@@ -48,6 +71,7 @@ class CyclingPowerClient:
         self._latest = BikeData()
 
     async def __aenter__(self) -> "CyclingPowerClient":
+        await _release_os_connection(self._address)
         self._client = BleakClient(self._address)
         await self._client.connect()
         log.info("Connected to trainer (Cycling Power / read-only): %s", self._address)
