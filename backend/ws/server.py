@@ -2,7 +2,7 @@
 ws/server.py — aiohttp WebSocket server
 
 Broadcasts trainer telemetry to the React frontend at ~4Hz.
-Receives control messages from the frontend (e.g. pause, speed override).
+Receives control messages from the frontend (e.g. pause, resume).
 
 Protocol (JSON over WebSocket):
 
@@ -14,26 +14,28 @@ Protocol (JSON over WebSocket):
     { "type": "milestone_reached", "milestoneId": 2 }
     { "type": "ride_complete" }
     { "type": "trainer_status", "status": "connected" | "disconnected" | "searching" }
+    { "type": "route_loaded", "waypoints": [{"lat": ..., "lng": ...}, ...] }
 
   Frontend → Backend:
     { "type": "set_resistance_mode", "mode": "simulation" | "erg" }
     { "type": "set_target_power", "watts": 200 }
     { "type": "pause" }
     { "type": "resume" }
-
-TODO: implement
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from typing import Optional, Set
+from typing import Callable, Coroutine, Optional, Set
 
 from aiohttp import web
 
+from backend.engine.route import RouteProfile
+
 log = logging.getLogger(__name__)
+
+AsyncCallback = Callable[[], Coroutine]
 
 
 class WebSocketServer:
@@ -48,12 +50,16 @@ class WebSocketServer:
         self._clients: Set[web.WebSocketResponse] = set()
         self._app: Optional[web.Application] = None
         self._runner: Optional[web.AppRunner] = None
+        self._route_payload: Optional[str] = None  # cached route_loaded JSON
+
+        # Callbacks wired by main.py after construction
+        self.on_pause: Optional[AsyncCallback] = None
+        self.on_resume: Optional[AsyncCallback] = None
+        self.on_mode_change: Optional[Callable[[str], Coroutine]] = None
 
     async def __aenter__(self) -> "WebSocketServer":
         self._app = web.Application()
         self._app.router.add_get("/ws", self._ws_handler)
-        # TODO: serve built frontend from frontend/dist/
-        # self._app.router.add_static("/", path="../frontend/dist", show_index=True)
         self._runner = web.AppRunner(self._app)
         await self._runner.setup()
         site = web.TCPSite(self._runner, self._host, self._port)
@@ -78,11 +84,27 @@ class WebSocketServer:
                 disconnected.add(ws)
         self._clients -= disconnected
 
+    def cache_route(self, profile: RouteProfile) -> None:
+        """Pre-serialize route waypoints so they can be sent to each new client."""
+        self._route_payload = json.dumps({
+            "type": "route_loaded",
+            "waypoints": [{"lat": w.lat, "lng": w.lng} for w in profile.waypoints],
+            "totalKm": profile.total_km,
+            "name": profile.name,
+        })
+
     async def _ws_handler(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         self._clients.add(ws)
         log.info("Frontend connected (%d clients)", len(self._clients))
+
+        # Send route to newly connected client immediately
+        if self._route_payload:
+            try:
+                await ws.send_str(self._route_payload)
+            except Exception:
+                pass
 
         try:
             async for msg in ws:
@@ -99,9 +121,16 @@ class WebSocketServer:
         return ws
 
     async def _handle_message(self, msg: dict) -> None:
-        """Handle incoming messages from the frontend."""
-        msg_type = msg.get("type")
-        log.debug("Frontend message: %s", msg_type)
-        # TODO: dispatch to trainer/route engine
-        # e.g. msg_type == "pause" → trainer.stop()
-        # e.g. msg_type == "set_target_power" → trainer.set_target_power(msg["watts"])
+        """Dispatch incoming messages from the frontend."""
+        match msg.get("type"):
+            case "pause":
+                if self.on_pause:
+                    await self.on_pause()
+            case "resume":
+                if self.on_resume:
+                    await self.on_resume()
+            case "set_resistance_mode":
+                if self.on_mode_change:
+                    await self.on_mode_change(msg.get("mode", "simulation"))
+            case other:
+                log.debug("Unhandled frontend message type: %s", other)
