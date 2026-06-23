@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 from backend.ble.ftms import BikeData, FTMSClient, scan_for_trainer
-from backend.engine.milestone import Milestone, check_proximity, load_milestones
+from backend.engine.milestone import Milestone, check_by_route_dist, load_milestones
 from backend.engine.route import RouteProfile, load_route
 from backend.ws.server import WebSocketServer
 
@@ -160,8 +160,9 @@ async def _run_loop(
         if speed_ms > 0:
             rider_t = min(1.0, rider_t + (speed_ms * TELEMETRY_INTERVAL) / (profile.total_km * 1000))
 
-        # Check milestone proximity and fire events
-        _, arrived = check_proximity(lat, lng, milestones, done_ids)
+        # Check milestone proximity by route distance — robust even when the
+        # landmark is not directly on the path (e.g., Louvre is 310m off-route)
+        arrived = check_by_route_dist(rider_t, milestones, done_ids, profile.total_km)
         for mid in arrived:
             done_ids.add(mid)
             ms = next(m for m in milestones if m.id == mid)

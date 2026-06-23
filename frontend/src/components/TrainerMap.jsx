@@ -26,25 +26,25 @@ const AR  = 0.03  // arrival threshold (fraction of route — reveal triggers)
 
 const MILESTONES = [
   {
-    id: 1, lat: 48.8584, lng: 2.2945, name: 'Eiffel Tower', distKm: 5.622, color: '#f59e0b',
+    id: 1, lat: 48.8584, lng: 2.2945, name: 'Eiffel Tower', distKm: 6.176, color: '#f59e0b',
     img: '/rides/paris-seine/images/eiffel.jpg',
     imageCredit: '© Benh LIEU SONG / Wikimedia Commons, CC BY-SA 3.0',
     fact: "Built as a temporary structure for the 1889 World's Fair, Gustave Eiffel's iron lattice tower was initially derided as an eyesore — today it's the world's most visited paid monument.",
   },
   {
-    id: 2, lat: 48.8606, lng: 2.3376, name: 'The Louvre', distKm: 8.887, color: '#a78bfa',
+    id: 2, lat: 48.8606, lng: 2.3376, name: 'The Louvre', distKm: 9.84, color: '#a78bfa',
     img: '/rides/paris-seine/images/louvre.jpg',
     imageCredit: '© Benh LIEU SONG / Wikimedia Commons, CC BY-SA 4.0',
     fact: 'A royal fortress before it became a museum, the Louvre houses over 380,000 objects — at a typical visitor pace it would take nine months to see them all.',
   },
   {
-    id: 3, lat: 48.8530, lng: 2.3499, name: 'Notre-Dame de Paris', distKm: 10.561, color: '#34d399',
+    id: 3, lat: 48.8530, lng: 2.3499, name: 'Notre-Dame de Paris', distKm: 11.027, color: '#34d399',
     img: '/rides/paris-seine/images/notredame.jpg',
     imageCredit: '© Peter Haas (P e z i) / Wikimedia Commons, CC BY-SA 3.0',
     fact: 'After the devastating 2019 fire, Notre-Dame reopened in December 2024 following a meticulous five-year restoration that involved 2,000 craftspeople from across France.',
   },
   {
-    id: 4, lat: 48.8867, lng: 2.3431, name: 'Sacré-Cœur', distKm: 15.312, color: '#fb7185',
+    id: 4, lat: 48.8867, lng: 2.3431, name: 'Sacré-Cœur', distKm: 15.983, color: '#fb7185',
     img: '/rides/paris-seine/images/sacrecoeur.jpg',
     imageCredit: '© Dietmar Rabich / Wikimedia Commons, CC BY-SA 4.0',
     fact: "Perched on the highest point in Paris at 130m above sea level, Sacré-Cœur's white travertine limestone bleaches whiter every time it rains — the stone actually self-cleans.",
@@ -159,7 +159,7 @@ export default function TrainerMap() {
   const { telemetry, trainerStatus, lastEvent, sendMessage, routeWaypoints, routeTotalKm } = useWebSocket()
   const isLive = telemetry !== null
 
-  const totalKm = routeTotalKm || 17.4
+  const totalKm = routeTotalKm || 16.053
   const msWithT = useMemo(() => MILESTONES.map(m => ({ ...m, t: m.distKm / totalKm })), [totalKm])
 
   const [riderT,         setRiderT]         = useState(0.05)

@@ -67,3 +67,28 @@ def check_proximity(
             approaching.append(m.id)
 
     return approaching, arrived
+
+
+def check_by_route_dist(
+    rider_t: float,
+    milestones: list[Milestone],
+    done_ids: set[int],
+    total_km: float,
+    arrival_frac: float = 0.025,
+) -> list[int]:
+    """
+    Return milestone IDs where the rider's route fraction is within arrival_frac
+    of the milestone's route fraction.
+
+    Prefer this over check_proximity when the route doesn't pass directly through
+    milestone coordinates (e.g., the landmark is 200-400m off the path).
+    arrival_frac=0.025 means ±2.5% of total_km — roughly ±400m on a 16km route.
+    """
+    arrived: list[int] = []
+    for m in milestones:
+        if m.id in done_ids:
+            continue
+        m_frac = m.dist_km / total_km
+        if abs(rider_t - m_frac) <= arrival_frac:
+            arrived.append(m.id)
+    return arrived
