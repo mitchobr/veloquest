@@ -161,7 +161,7 @@ export default function RideSelect({ onSelectRide }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: -0.5 }}>
-            Passage
+            VeloQuest
           </h1>
           <span style={{ fontSize: 13, color: '#8b949e' }}>Open-source cycling trainer</span>
         </div>

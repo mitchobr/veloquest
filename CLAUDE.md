@@ -2,7 +2,7 @@
 
 ## What This Is
 
-**Passage** — a Linux-native (portable to macOS/Windows) open-source cycling trainer app.
+**VeloQuest** — a Linux-native (portable to macOS/Windows) open-source cycling trainer app.
 Connects to a smart trainer via Bluetooth LE, guides the rider along a real-world GPX route
 with automatic grade simulation, and reveals landmark photos as milestones are reached.
 

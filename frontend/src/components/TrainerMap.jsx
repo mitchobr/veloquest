@@ -680,7 +680,7 @@ export default function TrainerMap({ rideId, onBack }) {
         </button>
 
         <span style={{ color: '#1e3a5f', fontSize: 10, fontStyle: 'italic' }}>
-          Paris · Seine · {totalKm.toFixed(0)} km
+          VeloQuest · {totalKm.toFixed(0)} km
         </span>
       </div>
 

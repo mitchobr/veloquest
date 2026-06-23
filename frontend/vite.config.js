@@ -12,6 +12,9 @@ export default defineConfig({
       '/rides': {
         target: 'http://localhost:8765',
       },
+      '/api': {
+        target: 'http://localhost:8765',
+      },
     },
   },
 })

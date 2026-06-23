@@ -1,4 +1,4 @@
-# Passage
+# VeloQuest
 
 An open-source indoor cycling trainer app for Linux (also portable to macOS and Windows).
 
