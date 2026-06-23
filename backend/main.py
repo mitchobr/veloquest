@@ -45,32 +45,36 @@ TELEMETRY_INTERVAL = 1.0 / TELEMETRY_HZ
 GRADE_DEBOUNCE = 0.1  # only send grade command if change > 0.1%
 
 
+async def _find_trainer() -> Optional[FTMSClient | CyclingPowerClient]:
+    """
+    Scan for a trainer and return a client object ready to connect, or None.
+    Called at ride-start (not at backend startup) so the scan and subsequent
+    connect() happen in tight sequence while the device is actively advertising.
+    """
+    try:
+        device = await scan_for_trainer(timeout=6.0)
+        if device:
+            log.info("FTMS trainer found: %s (%s)", device.name, device.address)
+            return FTMSClient(device.address)
+        log.info("No FTMS trainer — scanning for Cycling Power devices...")
+        cp_device = await scan_for_cycling_power(timeout=5.0)
+        if cp_device:
+            log.info("Cycling Power trainer found: %s (%s) — grade commands ignored",
+                     cp_device.name, cp_device.address)
+            return CyclingPowerClient(cp_device.address)
+    except Exception as e:
+        log.warning("BLE scan failed (%s) — no-trainer mode", e)
+    log.warning("No trainer found — no-trainer mode for this ride")
+    return None
+
+
 async def main() -> None:
     log.info("Passage backend starting...")
 
     async with WebSocketServer() as server:
-        # BLE scan once at startup — try FTMS first, then Cycling Power
-        trainer_client: Optional[FTMSClient | CyclingPowerClient] = None
-        try:
-            device = await scan_for_trainer(timeout=10.0)
-            if device:
-                trainer_client = FTMSClient(device.address)
-                log.info("FTMS trainer found: %s", device.name)
-            else:
-                log.info("No FTMS trainer — scanning for Cycling Power devices...")
-                cp_device = await scan_for_cycling_power(timeout=5.0)
-                if cp_device:
-                    trainer_client = CyclingPowerClient(cp_device.address)
-                    log.info("Cycling Power trainer found: %s (read-only; grade commands ignored)",
-                             cp_device.name)
-        except Exception as e:
-            log.warning("BLE scan failed (%s) — no-trainer mode", e)
-
-        if trainer_client is None:
-            log.warning("No trainer found — running in no-trainer mode")
-
-        await server.broadcast({"type": "trainer_status",
-                                "status": "connected" if trainer_client else "disconnected"})
+        # Trainer scan happens per-ride (at ride start) so scan and connect()
+        # are immediate neighbours — the device is still advertising.
+        await server.broadcast({"type": "trainer_status", "status": "disconnected"})
 
         while True:  # outer loop: one iteration per ride
             log.info("Idle — waiting for ride selection from frontend...")
@@ -99,6 +103,13 @@ async def main() -> None:
                      profile.name, profile.total_km, len(profile.waypoints))
             server.cache_route(profile)
             await server.broadcast_route()  # send to clients already connected
+
+            # Scan for trainer NOW — immediately after the route is ready so
+            # scan and connect() are tight together while the device advertises.
+            await server.broadcast({"type": "trainer_status", "status": "searching"})
+            trainer_client = await _find_trainer()
+            await server.broadcast({"type": "trainer_status",
+                                    "status": "connected" if trainer_client else "disconnected"})
 
             session = RideSession.new(ride_id)
 
