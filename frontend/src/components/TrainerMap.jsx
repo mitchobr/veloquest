@@ -10,7 +10,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { MapContainer, TileLayer, Polyline, CircleMarker, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import { useWebSocket } from '../hooks/useWebSocket.js'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -98,18 +99,57 @@ function MapSync({ onReady }) {
   return null
 }
 
-function RiderFollower({ position }) {
+// Smooth rider: interpolates between 4Hz telemetry updates at 60fps using imperative
+// Leaflet APIs so no React state is updated on every frame.
+function SmoothRider({ targetLatLng }) {
   const map = useMap()
+  // Shared mutable state — no React re-renders needed for smooth animation
+  const s = useRef({ prev: null, curr: null, layers: null }).current
+
+  // Capture telemetry arrival time so we can interpolate between updates
   useEffect(() => {
-    if (!position) return
-    try {
-      const cur = map.latLngToContainerPoint(map.getCenter())
-      const tgt = map.latLngToContainerPoint(position)
-      if (Math.hypot(tgt.x - cur.x, tgt.y - cur.y) > 12) {
-        map.panTo(position, { animate: true, duration: 1.2, easeLinearity: 0.5 })
+    if (!targetLatLng) return
+    s.prev = s.curr ?? { pos: targetLatLng, ts: performance.now() }
+    s.curr = { pos: targetLatLng, ts: performance.now() }
+  }, [targetLatLng])
+
+  // Create Leaflet layers + run RAF loop — mounted once per map lifetime
+  useEffect(() => {
+    const outer = L.circleMarker([0, 0], { radius: 11, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.15, weight: 0 }).addTo(map)
+    const inner = L.circleMarker([0, 0], { radius: 7,  color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1,    weight: 0 }).addTo(map)
+    const dot   = L.circleMarker([0, 0], { radius: 3,  color: '#fff',    fillColor: '#fff',    fillOpacity: 1,    weight: 0 }).addTo(map)
+    s.layers = [outer, inner, dot]
+
+    let af
+    const tick = () => {
+      if (s.curr) {
+        let pos = s.curr.pos
+        if (s.prev) {
+          const period  = Math.max(s.curr.ts - s.prev.ts, 16)
+          const elapsed = performance.now() - s.curr.ts
+          const frac    = Math.min(1, elapsed / period)
+          pos = [
+            s.prev.pos[0] + (s.curr.pos[0] - s.prev.pos[0]) * frac,
+            s.prev.pos[1] + (s.curr.pos[1] - s.prev.pos[1]) * frac,
+          ]
+        }
+        s.layers.forEach(l => l.setLatLng(pos))
+        try {
+          // Drive the map center directly at 60fps — no built-in pan animation
+          // needed because we supply our own smooth position curve
+          map.setView(pos, map.getZoom(), { animate: false, noMoveStart: true })
+        } catch {}
       }
-    } catch { /* map not ready */ }
-  }, [map, position])
+      af = requestAnimationFrame(tick)
+    }
+    af = requestAnimationFrame(tick)
+
+    return () => {
+      cancelAnimationFrame(af)
+      s.layers?.forEach(l => map.removeLayer(l))
+    }
+  }, [map]) // intentionally omit s — it's a stable ref, not reactive
+
   return null
 }
 
@@ -173,7 +213,15 @@ export default function TrainerMap() {
 
   const onMapReady = useCallback(map => {
     leafletMapRef.current = map
-    map.on('move zoom resize', refreshMsPx)
+    // Throttle move handler to ~30fps — SmoothRider calls setView at 60fps
+    // and we don't need React state updates for thumbnail positions that fast
+    let lastMs = 0
+    map.on('move zoom resize', () => {
+      const now = performance.now()
+      if (now - lastMs < 33) return
+      lastMs = now
+      refreshMsPx()
+    })
     refreshMsPx()
   }, [refreshMsPx])
 
@@ -421,13 +469,8 @@ export default function TrainerMap() {
           />
           {donePts.length  > 1 && <Polyline positions={donePts}  color="#f59e0b" weight={5} opacity={0.9} />}
           {aheadPts.length > 1 && <Polyline positions={aheadPts} color="#334155" weight={5} opacity={0.8} />}
-          {riderLatLng && <>
-            <CircleMarker center={riderLatLng} radius={11} pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.15, weight: 0 }} />
-            <CircleMarker center={riderLatLng} radius={7}  pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1, weight: 0 }} />
-            <CircleMarker center={riderLatLng} radius={3}  pathOptions={{ color: '#fff', fillColor: '#fff', fillOpacity: 1, weight: 0 }} />
-          </>}
           <MapSync onReady={onMapReady} />
-          {riderLatLng && <RiderFollower position={riderLatLng} />}
+          {riderLatLng && <SmoothRider targetLatLng={riderLatLng} />}
         </MapContainer>
 
         {/* OSM attribution */}
@@ -647,7 +690,7 @@ export default function TrainerMap() {
               position: 'fixed', inset: 0,
               background: 'rgba(0,0,0,0.72)',
               opacity: revealIn ? 1 : 0,
-              transition: 'opacity .3s ease',
+              transition: 'opacity .5s ease',
               zIndex: 9998,
             }}
           />
@@ -663,14 +706,24 @@ export default function TrainerMap() {
               transform: revealIn ? 'scale(1)' : 'scale(0)',
               transformOrigin: `${panelOrigin.x}px ${panelOrigin.y}px`,
               opacity: revealIn ? 1 : 0,
-              transition: 'transform .48s cubic-bezier(.34,1.45,.64,1), opacity .22s ease',
+              transition: 'transform .72s cubic-bezier(.34,1.45,.64,1), opacity .28s ease',
               zIndex: 9999,
             }}
           >
-            {/* Full-bleed photo */}
+            {/* Blurred backdrop — same image at 150% scale, heavily blurred,
+                fills any letterbox gaps when the photo doesn't match the panel ratio */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              backgroundImage: `url(${panelMilestone.img})`,
+              backgroundSize: 'cover', backgroundPosition: 'center',
+              filter: 'blur(22px) brightness(0.35) saturate(0.5)',
+              transform: 'scale(1.08)',
+            }} />
+
+            {/* Photo — contained so longest edge fills, no cropping */}
             <img
               src={panelMilestone.img} alt={panelMilestone.name}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
               onError={e => { e.target.style.display = 'none'; e.target.parentNode.style.background = panelMilestone.color + '33' }}
             />
 
