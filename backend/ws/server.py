@@ -60,9 +60,9 @@ class WebSocketServer:
         self._runner: Optional[web.AppRunner] = None
         self._route_payload: Optional[str] = None  # cached route_loaded JSON
 
-        # Ride-loading coordination
-        self._load_ride_event: asyncio.Event = asyncio.Event()
-        self._pending_ride_id: Optional[str] = None
+        # Ride-loading coordination — Queue so messages sent before
+        # wait_for_load_ride() is called are not lost (Event.clear() would drop them).
+        self._load_ride_queue: asyncio.Queue[str] = asyncio.Queue()
 
         # Callbacks wired by main.py after construction
         self.on_pause: Optional[AsyncCallback] = None
@@ -138,10 +138,7 @@ class WebSocketServer:
 
     async def wait_for_load_ride(self) -> str:
         """Block until the frontend sends a load_ride message; return the rideId."""
-        self._load_ride_event.clear()
-        self._pending_ride_id = None
-        await self._load_ride_event.wait()
-        return self._pending_ride_id  # type: ignore[return-value]
+        return await self._load_ride_queue.get()
 
     # ── HTTP handlers ─────────────────────────────────────────────────────────
 
@@ -235,8 +232,7 @@ class WebSocketServer:
                 ride_id = msg.get("rideId")
                 if ride_id:
                     log.info("Frontend requested ride: %s", ride_id)
-                    self._pending_ride_id = ride_id
-                    self._load_ride_event.set()
+                    await self._load_ride_queue.put(ride_id)
                     await self.broadcast({"type": "ride_loading", "rideId": ride_id})
             case "pause":
                 if self.on_pause:
