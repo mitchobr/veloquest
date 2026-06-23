@@ -32,7 +32,7 @@ const MILESTONES = [
     fact: "Built as a temporary structure for the 1889 World's Fair, Gustave Eiffel's iron lattice tower was initially derided as an eyesore — today it's the world's most visited paid monument.",
   },
   {
-    id: 2, lat: 48.8606, lng: 2.3376, name: 'The Louvre', distKm: 9.84, color: '#a78bfa',
+    id: 2, lat: 48.857929, lng: 2.336346, name: 'The Louvre', distKm: 9.84, color: '#a78bfa',
     img: '/rides/paris-seine/images/louvre.jpg',
     imageCredit: '© Benh LIEU SONG / Wikimedia Commons, CC BY-SA 4.0',
     fact: 'A royal fortress before it became a museum, the Louvre houses over 380,000 objects — at a typical visitor pace it would take nine months to see them all.',
