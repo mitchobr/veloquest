@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from backend.ble.cycling_power import CyclingPowerClient, scan_for_cycling_power
 from backend.ble.ftms import BikeData, FTMSClient, scan_for_trainer
 from backend.engine.milestone import Milestone, check_by_route_dist, load_milestones
 from backend.engine.route import RouteProfile, load_route
@@ -48,18 +49,28 @@ async def main() -> None:
     log.info("Passage backend starting...")
 
     async with WebSocketServer() as server:
-        # BLE scan once at startup — independent of which ride is selected
+        # BLE scan once at startup — try FTMS first, then Cycling Power
+        trainer_client: Optional[FTMSClient | CyclingPowerClient] = None
         try:
             device = await scan_for_trainer(timeout=10.0)
+            if device:
+                trainer_client = FTMSClient(device.address)
+                log.info("FTMS trainer found: %s", device.name)
+            else:
+                log.info("No FTMS trainer — scanning for Cycling Power devices...")
+                cp_device = await scan_for_cycling_power(timeout=5.0)
+                if cp_device:
+                    trainer_client = CyclingPowerClient(cp_device.address)
+                    log.info("Cycling Power trainer found: %s (read-only; grade commands ignored)",
+                             cp_device.name)
         except Exception as e:
             log.warning("BLE scan failed (%s) — no-trainer mode", e)
-            device = None
 
-        if device is None:
-            log.warning("No FTMS trainer found — running in no-trainer mode")
+        if trainer_client is None:
+            log.warning("No trainer found — running in no-trainer mode")
 
         await server.broadcast({"type": "trainer_status",
-                                "status": "connected" if device else "disconnected"})
+                                "status": "connected" if trainer_client else "disconnected"})
 
         while True:  # outer loop: one iteration per ride
             log.info("Idle — waiting for ride selection from frontend...")
@@ -91,20 +102,21 @@ async def main() -> None:
 
             session = RideSession.new(ride_id)
 
-            if device:
+            if trainer_client:
                 try:
-                    async with FTMSClient(device.address) as trainer:
+                    async with trainer_client as trainer:
                         await trainer.start_simulation_mode()
-                        latest: BikeData = BikeData()
+                        # latest_ref is a mutable list so the BLE callback can update
+                        # index 0 in-place — a nonlocal reassignment wouldn't propagate.
+                        latest_ref: list[BikeData] = [BikeData()]
 
                         def on_bike_data(d: BikeData) -> None:
-                            nonlocal latest
-                            latest = d
+                            latest_ref[0] = d
 
                         await trainer.start_notify(on_bike_data)
                         await _run_loop(server, profile, milestones,
                                         trainer=trainer, session=session,
-                                        latest_ref=[latest])
+                                        latest_ref=latest_ref)
                 except Exception as e:
                     log.error("Trainer error: %s — switching to no-trainer mode", e)
                     await _run_loop(server, profile, milestones,
@@ -186,9 +198,11 @@ async def _run_loop(
 
         if trainer is not None and latest_ref:
             data: BikeData = latest_ref[0]
-            speed_kmh = data.speed_kmh or 0.0
             power_w   = data.power_w   or 0
             cadence   = data.cadence   or 0
+            # If the trainer doesn't report speed (e.g. Cycling Power only),
+            # fall back to the demo speed so the rider still advances.
+            speed_kmh = data.speed_kmh or (25.0 * demo_speed if not paused else 0.0)
         else:
             speed_kmh = 25.0 * demo_speed if not paused else 0.0
             power_w   = 180  if not paused else 0
