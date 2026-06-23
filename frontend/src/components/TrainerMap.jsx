@@ -156,12 +156,18 @@ function SmoothRider({ targetLatLng }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TrainerMap({ rideId, onBack }) {
-  const { telemetry, trainerStatus, lastEvent, sendMessage, routeWaypoints, routeTotalKm, rideLoading } = useWebSocket()
+  const { telemetry, trainerStatus, lastEvent, sendMessage, connected, routeWaypoints, routeTotalKm, rideLoading } = useWebSocket()
 
-  // Request the selected ride from the backend on mount
+  // Send load_ride once the WebSocket is actually open.
+  // useEffect([rideId]) fires before the socket finishes connecting on first mount,
+  // so the message would be silently dropped. Gating on `connected` ensures delivery.
+  const loadSentRef = useRef(false)
   useEffect(() => {
-    if (rideId) sendMessage({ type: 'load_ride', rideId })
-  }, [rideId]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (rideId && connected && !loadSentRef.current) {
+      loadSentRef.current = true
+      sendMessage({ type: 'load_ride', rideId })
+    }
+  }, [rideId, connected]) // eslint-disable-line react-hooks/exhaustive-deps
   const isLive = telemetry !== null
 
   const totalKm = routeTotalKm || 16.053
