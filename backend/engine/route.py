@@ -17,7 +17,9 @@ TODO: implement
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,6 +27,8 @@ from typing import Optional
 
 import gpxpy
 import httpx
+
+log = logging.getLogger(__name__)
 import numpy as np
 from scipy.signal import savgol_filter
 
@@ -103,12 +107,17 @@ async def fetch_elevation(latlngs: list[tuple[float, float]]) -> list[float]:
     """
     BATCH_SIZE = 100
     BASE_URL = "https://api.opentopodata.org/v1/srtm30m"
+    # OpenTopoData free tier: 1 req/s sustained. Sleep between batches to avoid 429.
+    BATCH_DELAY = 1.1
     elevations: list[float] = []
+    batches = [latlngs[i:i + BATCH_SIZE] for i in range(0, len(latlngs), BATCH_SIZE)]
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        for i in range(0, len(latlngs), BATCH_SIZE):
-            batch = latlngs[i:i + BATCH_SIZE]
+        for idx, batch in enumerate(batches):
+            if idx > 0:
+                await asyncio.sleep(BATCH_DELAY)
             locations = "|".join(f"{lat},{lng}" for lat, lng in batch)
+            log.info("Fetching elevation batch %d/%d (%d points)...", idx + 1, len(batches), len(batch))
             resp = await client.get(BASE_URL, params={"locations": locations})
             resp.raise_for_status()
             data = resp.json()

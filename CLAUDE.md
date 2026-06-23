@@ -105,7 +105,7 @@ npm run dev
 ```bash
 # Terminal 1 — backend (auto-discovers BLE trainer; falls back to no-trainer mode)
 source backend/.venv/bin/activate
-python backend/main.py
+python -m backend.main
 
 # Terminal 2 — frontend
 cd frontend && npm run dev

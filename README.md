@@ -95,7 +95,7 @@ cd frontend && npm run dev
 ```bash
 # Terminal 1: backend (no-trainer mode — synthetic telemetry at 25 km/h)
 source backend/.venv/bin/activate
-python backend/main.py
+python -m backend.main
 
 # Terminal 2: frontend
 cd frontend && npm run dev
@@ -107,7 +107,7 @@ cd frontend && npm run dev
 ```bash
 # Power on your FTMS trainer first, then:
 source backend/.venv/bin/activate
-python backend/main.py   # auto-discovers trainer via BLE scan
+python -m backend.main   # auto-discovers trainer via BLE scan
 
 cd frontend && npm run dev
 ```
