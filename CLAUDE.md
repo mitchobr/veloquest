@@ -1,0 +1,177 @@
+# CLAUDE.md — Project Context for Claude Code
+
+## What This Is
+
+**Passage** — a Linux-native (portable to macOS/Windows) open-source cycling trainer app.
+Connects to a smart trainer via Bluetooth LE, guides the rider along a real-world GPX route
+with automatic grade simulation, and reveals landmark photos as milestones are reached.
+
+Think: Tacx app, but open source, subscription-free, and with cinematic milestone moments.
+
+## Architecture
+
+```
+BLE Trainer (FTMS)
+        │
+        ▼
+Python Backend  (asyncio + aiohttp)
+  ├── ble/ftms.py       — bleak FTMS client
+  ├── engine/route.py   — GPX + elevation + grade
+  └── ws/server.py      — WebSocket broadcast
+        │
+        │  ws://localhost:8765
+        ▼
+React Frontend  (Vite)
+  └── components/TrainerMap.jsx  ← PROTOTYPE (start here)
+        │
+        ▼
+pywebview  (optional native window — GTK/WebKit on Linux)
+```
+
+## Key Decisions Already Made — Don't Revisit Without Discussion
+
+- **BLE via `bleak`** — asyncio-native, same API on Linux/macOS/Windows
+- **Simulation mode, not ERG** — sends grade% to trainer (not fixed watts); rider effort varies naturally
+- **OSM + Leaflet** for maps — free, no API key required
+- **OpenTopoData** for elevation — free, SRTM data, no key, queried in batch before ride starts
+- **Routes are pre-loaded** — full elevation profile fetched and cached as JSON sidecar before riding; no live API calls mid-ride
+- **GPX** as the route file format
+- **pywebview** as the native window shell — ~10MB, uses OS WebView (not Electron)
+- **WebSocket** between Python and React — thin JSON protocol, ~4Hz telemetry
+
+## The Milestone Mechanic (Core UI — Approved)
+
+`frontend/src/components/TrainerMap.jsx` is the locked prototype. The interaction is:
+
+1. Milestone thumbnails sit on the map at their route positions
+2. As rider approaches (within ~12% of route), thumbnail grows smoothly
+3. On arrival, the panel **scales out from the thumbnail position** (not a slide)
+4. Full-bleed landmark photo fills the panel, dark overlay at bottom with name + fact + countdown
+5. Auto-dismisses after 15s, or tap to dismiss early
+6. Thumbnail stays on map, marked completed (greyscale + ✓)
+
+Do not replace this mechanic. Iterate on it.
+
+## Directory Structure
+
+```
+passage/
+├── CLAUDE.md                  ← you are here
+├── README.md
+├── NEXT_STEPS.md
+├── .gitignore
+├── frontend/
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── index.html
+│   └── src/
+│       ├── main.jsx
+│       ├── components/
+│       │   └── TrainerMap.jsx     ← prototype milestone UI
+│       └── hooks/
+│           ├── useWebSocket.js    ← TODO: WebSocket connection to backend
+│           └── useRoute.js        ← TODO: route state management
+├── backend/
+│   ├── main.py                    ← asyncio entry point
+│   ├── requirements.txt
+│   ├── ble/
+│   │   └── ftms.py                ← FTMS client (bleak)
+│   ├── engine/
+│   │   ├── route.py               ← GPX loading, elevation, grade
+│   │   └── milestone.py           ← milestone proximity logic
+│   └── ws/
+│       └── server.py              ← aiohttp WebSocket server
+└── rides/
+    └── paris-seine/
+        ├── route.gpx
+        ├── route.elevation.json   ← pre-fetched, generated at ride load time
+        └── milestones.json
+```
+
+## Running the Frontend (Prototype / No Trainer Needed)
+
+```bash
+cd frontend
+npm install
+npm run dev
+# Visit http://localhost:5173
+# Uses simulated telemetry — no BLE, no backend
+```
+
+## Running the Full Stack (Once Backend Is Built)
+
+```bash
+# Terminal 1
+cd backend && python main.py
+
+# Terminal 2
+cd frontend && npm run dev
+```
+
+## WebSocket Protocol
+
+```json
+// Backend → Frontend, ~4Hz
+{ "type": "telemetry", "power": 218, "cadence": 88, "hr": 156,
+  "speed": 29.4, "grade": 3.2, "riderT": 0.342, "distKm": 6.16 }
+
+// Frontend → Backend
+{ "type": "set_resistance_mode", "mode": "simulation" }
+
+// Backend → Frontend (event)
+{ "type": "milestone_reached", "milestoneId": 2 }
+```
+
+## Ride Definition Format (Planned)
+
+```json
+{
+  "name": "Paris — Along the Seine",
+  "totalKm": 18,
+  "gpx": "route.gpx",
+  "milestones": [
+    {
+      "id": 1,
+      "lat": 48.8584, "lng": 2.2945,
+      "name": "Eiffel Tower",
+      "distKm": 3.9,
+      "image": "eiffel.jpg",
+      "fact": "Built for the 1889 World's Fair..."
+    }
+  ]
+}
+```
+
+## Git Workflow
+
+Commit after every working milestone. Push to GitHub after every commit.
+
+```bash
+git add -A
+git commit -m "type: short description"
+git push origin main
+```
+
+Commit types: `feat`, `fix`, `refactor`, `style`, `docs`, `chore`
+
+Examples:
+```
+feat: add WebSocket hook with auto-reconnect
+feat: replace simulated telemetry with live backend feed
+feat: swap SVG placeholder map for Leaflet + OSM tiles
+fix: milestone reveal not dismissing on timer expiry
+refactor: extract grade calculation to pure function
+docs: add ride definition format to CLAUDE.md
+chore: add .gitignore
+```
+
+**Commit often.** Every time a feature works end-to-end, commit before moving on.
+Never commit broken code to main. If mid-feature, use a branch.
+
+## Coding Standards
+
+- **Python**: asyncio throughout — no threading. Type hints on all function signatures.
+- **React**: functional components + hooks only. No class components.
+- **State ownership**: BLE/route/grade state lives in the backend. UI animation/display state lives in React.
+- **No hardcoded secrets**: any API keys go in `.env`, never committed. Add `.env` to `.gitignore`.
+- **Error handling**: BLE disconnects happen. Handle them gracefully — log, surface to UI, retry.
