@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "lat": 48.8584,
+    "lng": 2.2945,
+    "name": "Eiffel Tower",
+    "distKm": 3.9,
+    "image": "eiffel.jpg",
+    "fact": "Built as a temporary structure for the 1889 World's Fair, Gustave Eiffel's iron lattice tower was originally derided as an eyesore — today it's the world's most visited paid monument."
+  },
+  {
+    "id": 2,
+    "lat": 48.8606,
+    "lng": 2.3376,
+    "name": "The Louvre",
+    "distKm": 7.9,
+    "image": "louvre.jpg",
+    "fact": "A royal fortress before it became a museum, the Louvre houses over 380,000 objects — at a typical visitor pace it would take nine months to see them all."
+  },
+  {
+    "id": 3,
+    "lat": 48.8530,
+    "lng": 2.3499,
+    "name": "Notre-Dame de Paris",
+    "distKm": 11.7,
+    "image": "notredame.jpg",
+    "fact": "After the devastating 2019 fire, Notre-Dame reopened in December 2024 following a meticulous five-year restoration that involved 2,000 craftspeople from across France."
+  },
+  {
+    "id": 4,
+    "lat": 48.8867,
+    "lng": 2.3431,
+    "name": "Sacré-Cœur",
+    "distKm": 15.3,
+    "image": "sacrecoeur.jpg",
+    "fact": "Perched on the highest point in Paris at 130m above sea level, Sacré-Cœur's white travertine limestone bleaches whiter every time it rains — the stone actually self-cleans."
+  }
+]

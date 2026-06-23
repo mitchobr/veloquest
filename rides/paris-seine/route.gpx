@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Passage"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>Paris — Along the Seine</name>
+    <desc>~18km cycling route along the Seine through central Paris</desc>
+  </metadata>
+  <trk>
+    <name>Paris — Along the Seine</name>
+    <trkseg>
+      <!-- Start: Bois de Boulogne / Pont de Sèvres area, heading east -->
+      <trkpt lat="48.8420" lon="2.2220"></trkpt>
+      <trkpt lat="48.8435" lon="2.2310"></trkpt>
+      <trkpt lat="48.8455" lon="2.2410"></trkpt>
+      <trkpt lat="48.8475" lon="2.2510"></trkpt>
+      <trkpt lat="48.8495" lon="2.2590"></trkpt>
+      <trkpt lat="48.8515" lon="2.2660"></trkpt>
+      <trkpt lat="48.8535" lon="2.2730"></trkpt>
+      <trkpt lat="48.8555" lon="2.2800"></trkpt>
+      <trkpt lat="48.8570" lon="2.2860"></trkpt>
+      <!-- Approaching Eiffel Tower (~3.9km from start) -->
+      <trkpt lat="48.8578" lon="2.2900"></trkpt>
+      <trkpt lat="48.8582" lon="2.2930"></trkpt>
+      <!-- Eiffel Tower milestone at 48.8584, 2.2945 -->
+      <trkpt lat="48.8584" lon="2.2945"></trkpt>
+      <trkpt lat="48.8585" lon="2.2960"></trkpt>
+      <trkpt lat="48.8584" lon="2.2980"></trkpt>
+      <trkpt lat="48.8582" lon="2.3010"></trkpt>
+      <trkpt lat="48.8578" lon="2.3050"></trkpt>
+      <trkpt lat="48.8572" lon="2.3100"></trkpt>
+      <trkpt lat="48.8568" lon="2.3150"></trkpt>
+      <trkpt lat="48.8566" lon="2.3200"></trkpt>
+      <trkpt lat="48.8570" lon="2.3250"></trkpt>
+      <trkpt lat="48.8578" lon="2.3300"></trkpt>
+      <trkpt lat="48.8590" lon="2.3340"></trkpt>
+      <trkpt lat="48.8600" lon="2.3360"></trkpt>
+      <!-- Louvre milestone at 48.8606, 2.3376 (~7.9km) -->
+      <trkpt lat="48.8606" lon="2.3376"></trkpt>
+      <trkpt lat="48.8610" lon="2.3400"></trkpt>
+      <trkpt lat="48.8608" lon="2.3430"></trkpt>
+      <trkpt lat="48.8600" lon="2.3460"></trkpt>
+      <trkpt lat="48.8588" lon="2.3490"></trkpt>
+      <trkpt lat="48.8578" lon="2.3510"></trkpt>
+      <trkpt lat="48.8565" lon="2.3520"></trkpt>
+      <trkpt lat="48.8550" lon="2.3518"></trkpt>
+      <trkpt lat="48.8538" lon="2.3510"></trkpt>
+      <!-- Notre Dame on Île de la Cité (~11.7km) -->
+      <trkpt lat="48.8530" lon="2.3499"></trkpt>
+      <trkpt lat="48.8525" lon="2.3490"></trkpt>
+      <trkpt lat="48.8520" lon="2.3470"></trkpt>
+      <trkpt lat="48.8518" lon="2.3450"></trkpt>
+      <trkpt lat="48.8520" lon="2.3430"></trkpt>
+      <trkpt lat="48.8525" lon="2.3410"></trkpt>
+      <trkpt lat="48.8532" lon="2.3390"></trkpt>
+      <trkpt lat="48.8545" lon="2.3370"></trkpt>
+      <trkpt lat="48.8560" lon="2.3360"></trkpt>
+      <trkpt lat="48.8580" lon="2.3360"></trkpt>
+      <trkpt lat="48.8600" lon="2.3370"></trkpt>
+      <trkpt lat="48.8620" lon="2.3390"></trkpt>
+      <trkpt lat="48.8650" lon="2.3400"></trkpt>
+      <trkpt lat="48.8680" lon="2.3410"></trkpt>
+      <trkpt lat="48.8710" lon="2.3420"></trkpt>
+      <trkpt lat="48.8740" lon="2.3430"></trkpt>
+      <trkpt lat="48.8770" lon="2.3430"></trkpt>
+      <trkpt lat="48.8800" lon="2.3428"></trkpt>
+      <trkpt lat="48.8830" lon="2.3430"></trkpt>
+      <trkpt lat="48.8855" lon="2.3432"></trkpt>
+      <!-- Sacré-Cœur at 48.8867, 2.3431 (~15.3km) -->
+      <trkpt lat="48.8867" lon="2.3431"></trkpt>
+      <trkpt lat="48.8878" lon="2.3430"></trkpt>
+      <trkpt lat="48.8890" lon="2.3425"></trkpt>
+      <trkpt lat="48.8905" lon="2.3415"></trkpt>
+      <trkpt lat="48.8918" lon="2.3400"></trkpt>
+      <trkpt lat="48.8930" lon="2.3380"></trkpt>
+      <trkpt lat="48.8940" lon="2.3355"></trkpt>
+      <trkpt lat="48.8948" lon="2.3325"></trkpt>
+      <trkpt lat="48.8952" lon="2.3295"></trkpt>
+      <!-- End: ~18km total, Pigalle area -->
+      <trkpt lat="48.8954" lon="2.3265"></trkpt>
+      <trkpt lat="48.8955" lon="2.3240"></trkpt>
+      <trkpt lat="48.8953" lon="2.3215"></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
