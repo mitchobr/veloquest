@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
+import { useWebSocket } from '../hooks/useWebSocket.js'
 
 // ─── Layout constants ──────────────────────────────────────────────────────────
 
@@ -127,6 +128,9 @@ const ELEV_AREA  = `${ELEV_LINE} L${EW} ${EH} L0 ${EH} Z`
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TrainerMap() {
+  const { telemetry, trainerStatus, lastEvent, sendMessage } = useWebSocket()
+  const isLive = telemetry !== null
+
   const [riderT,         setRiderT]         = useState(0.05)
   const [playing,        setPlaying]        = useState(false)
   const [speed,          setSpeed]          = useState(5)
@@ -160,6 +164,27 @@ export default function TrainerMap() {
     return () => clearTimeout(clearTimer)
   }, [revealId])
 
+  // Sync riderT from live telemetry
+  useEffect(() => {
+    if (!isLive || telemetry?.riderT == null) return
+    const t = telemetry.riderT
+    setRiderT(t); r.T = t
+    if (t >= 1) { setPlaying(false); r.playing = false }
+  }, [telemetry?.riderT])
+
+  // Handle backend events (milestone reached, ride complete)
+  useEffect(() => {
+    if (!lastEvent) return
+    if (lastEvent.type === 'milestone_reached') {
+      const mid = lastEvent.milestoneId
+      if (!r.done.has(mid) && r.revealId === null) {
+        setRevealId(mid); r.revealId = mid
+      }
+    } else if (lastEvent.type === 'ride_complete') {
+      setPlaying(false); r.playing = false
+    }
+  }, [lastEvent])
+
   // Main animation loop
   useEffect(() => {
     let af
@@ -169,11 +194,25 @@ export default function TrainerMap() {
       r.last = ts
 
       if (r.playing) {
-        const nT = Math.min(1, r.T + r.speed * 0.004 * dt)
-        setRiderT(nT); r.T = nT
+        if (!isLive) {
+          // Simulate rider advancement (no backend)
+          const nT = Math.min(1, r.T + r.speed * 0.004 * dt)
+          setRiderT(nT); r.T = nT
+
+          // Check milestone proximity in simulated mode
+          if (r.revealId === null) {
+            for (const m of MILESTONES) {
+              if (r.done.has(m.id)) continue
+              const d = m.t - nT
+              if (d >= 0 && d < AR) { setRevealId(m.id); r.revealId = m.id; break }
+            }
+          }
+
+          if (nT >= 1) setPlaying(false)
+        }
 
         if (r.revealId !== null) {
-          // Count down the reveal timer
+          // Count down the reveal timer (runs in both modes)
           const ns = Math.max(0, r.revealSec - dt)
           setRevealSec(ns); r.revealSec = ns
           if (ns <= 0) {
@@ -181,34 +220,26 @@ export default function TrainerMap() {
             const s = new Set(r.done); s.add(id); r.done = s
             setDone(new Set(s)); setRevealId(null); r.revealId = null
           }
-        } else {
-          // Check milestone proximity
-          for (const m of MILESTONES) {
-            if (r.done.has(m.id)) continue
-            const d = m.t - nT
-            if (d >= 0 && d < AR) { setRevealId(m.id); r.revealId = m.id; break }
-          }
         }
 
         setTick(t => t + 1)
-        if (nT >= 1) setPlaying(false)
       }
 
       af = requestAnimationFrame(loop)
     }
     af = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(af)
-  }, [])
+  }, [isLive])
 
-  // ─── Derived display values (simulated — replace with WebSocket telemetry) ───
+  // ─── Derived display values ───────────────────────────────────────────────────
 
-  const grade   = getGrade(riderT)
   const tm      = tick * 0.016
-  const power   = Math.round(175 + grade * 11 + Math.sin(tm * 1.3) * 16)
-  const cadence = Math.round(87 + Math.sin(tm * 0.9) * 4)
-  const hr      = Math.round(146 + grade * 5 + Math.sin(tm * 0.4) * 8)
-  const kph     = Math.max(8, 31 - grade * 2.2 + Math.sin(tm * 1.7) * 2)
-  const distKm  = riderT * KM
+  const grade   = isLive ? (telemetry.grade ?? 0) : getGrade(riderT)
+  const power   = isLive ? telemetry.power   : Math.round(175 + grade * 11 + Math.sin(tm * 1.3) * 16)
+  const cadence = isLive ? telemetry.cadence : Math.round(87 + Math.sin(tm * 0.9) * 4)
+  const hr      = isLive ? telemetry.hr      : Math.round(146 + grade * 5 + Math.sin(tm * 0.4) * 8)
+  const kph     = isLive ? telemetry.speed   : Math.max(8, 31 - grade * 2.2 + Math.sin(tm * 1.7) * 2)
+  const distKm  = isLive ? telemetry.distKm  : riderT * KM
   const elapsed = distKm / Math.max(kph, 1) * 3600
   const mins    = Math.floor(elapsed / 60)
   const secs    = Math.floor(elapsed % 60)
@@ -274,6 +305,17 @@ export default function TrainerMap() {
               </div>
             </div>
           ))}
+          {/* BLE status badge — only shown when trainer not connected */}
+          {isLive && trainerStatus !== 'connected' && (
+            <div style={{ padding: '5px 10px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ color: trainerStatus === 'searching' ? '#f59e0b' : '#ef4444', fontSize: 8, letterSpacing: '.1em', fontWeight: 700 }}>
+                BLE
+              </div>
+              <div style={{ color: trainerStatus === 'searching' ? '#f59e0b' : '#ef4444', fontSize: 9, fontWeight: 600 }}>
+                {trainerStatus}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Map area ── */}
@@ -515,9 +557,9 @@ export default function TrainerMap() {
           </svg>
         </div>
 
-        {/* ── Controls (simulation only — remove once real backend is wired) ── */}
+        {/* ── Controls (simulation only — hidden when live backend is connected) ── */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
+          display: isLive ? 'none' : 'flex', alignItems: 'center', gap: 10,
           padding: '8px 14px', background: '#0d1117', borderTop: '1px solid #1e293b',
         }}>
           <button
