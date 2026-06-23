@@ -133,6 +133,7 @@ export default function TrainerMap() {
 
   const [riderT,         setRiderT]         = useState(0.05)
   const [playing,        setPlaying]        = useState(false)
+  const [livePlaying,    setLivePlaying]    = useState(false)
   const [speed,          setSpeed]          = useState(5)
   const [done,           setDone]           = useState(new Set())
   const [revealId,       setRevealId]       = useState(null)
@@ -270,7 +271,15 @@ export default function TrainerMap() {
     setPlaying(false); setPanelMilestone(null)
   }
 
-  const togglePlay = () => { const np = !r.playing; r.playing = np; setPlaying(np) }
+  const togglePlay = () => {
+    if (isLive) {
+      const np = !livePlaying
+      setLivePlaying(np)
+      sendMessage({ type: np ? 'resume' : 'pause' })
+    } else {
+      const np = !r.playing; r.playing = np; setPlaying(np)
+    }
+  }
 
   // ─── HUD config ────────────────────────────────────────────────────────────
 
@@ -557,33 +566,44 @@ export default function TrainerMap() {
           </svg>
         </div>
 
-        {/* ── Controls (simulation only — hidden when live backend is connected) ── */}
+        {/* ── Controls ── */}
         <div style={{
-          display: isLive ? 'none' : 'flex', alignItems: 'center', gap: 10,
+          display: 'flex', alignItems: 'center', gap: 10,
           padding: '8px 14px', background: '#0d1117', borderTop: '1px solid #1e293b',
         }}>
-          <button
-            onClick={togglePlay}
-            style={{
-              background: playing ? 'transparent' : '#f59e0b',
-              color: playing ? '#64748b' : '#0d1117',
-              border: playing ? '0.5px solid #1e293b' : 'none',
-              borderRadius: 7, padding: '6px 18px',
-              fontSize: 13, fontWeight: 700, cursor: 'pointer', minWidth: 85,
-            }}
-          >
-            {playing ? '⏸ Pause' : '▶ Ride'}
-          </button>
+          {/* Play/Pause — always visible; sends to backend when live */}
+          {(() => {
+            const active = isLive ? livePlaying : playing
+            return (
+              <button
+                onClick={togglePlay}
+                style={{
+                  background: active ? 'transparent' : '#f59e0b',
+                  color: active ? '#64748b' : '#0d1117',
+                  border: active ? '0.5px solid #1e293b' : 'none',
+                  borderRadius: 7, padding: '6px 18px',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', minWidth: 85,
+                }}
+              >
+                {active ? '⏸ Pause' : '▶ Ride'}
+              </button>
+            )
+          })()}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-            <span style={{ color: '#334155', fontSize: 11 }}>Demo speed</span>
-            <input
-              type="range" min={1} max={10} step={1} value={speed}
-              onChange={e => setSpeed(Number(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span style={{ color: '#64748b', fontSize: 11, minWidth: 24 }}>{speed}×</span>
-          </div>
+          {/* Speed slider — simulation only */}
+          {!isLive && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+              <span style={{ color: '#334155', fontSize: 11 }}>Demo speed</span>
+              <input
+                type="range" min={1} max={10} step={1} value={speed}
+                onChange={e => setSpeed(Number(e.target.value))}
+                style={{ flex: 1 }}
+              />
+              <span style={{ color: '#64748b', fontSize: 11, minWidth: 24 }}>{speed}×</span>
+            </div>
+          )}
+
+          {isLive && <div style={{ flex: 1 }} />}
 
           <button
             onClick={reset}

@@ -91,7 +91,7 @@ async def _run_loop(
     """
     rider_t: float = 0.0
     done_ids: set[int] = set()
-    paused: bool = False
+    paused: bool = True   # start paused — frontend sends "resume" to begin the ride
     last_grade: Optional[float] = None
 
     async def on_pause() -> None:
@@ -107,43 +107,26 @@ async def _run_loop(
     server.on_pause = on_pause
     server.on_resume = on_resume
 
-    log.info("Starting telemetry loop (%.0fHz)%s",
+    log.info("Starting telemetry loop (%.0fHz)%s — waiting for resume",
              TELEMETRY_HZ, " [no-trainer mode]" if trainer is None else "")
 
     while rider_t < 1.0:
         await asyncio.sleep(TELEMETRY_INTERVAL)
 
-        if paused:
-            continue
-
         lat, lng = profile.lat_lng_at_t(rider_t)
         grade = profile.grade_at_t(rider_t)
 
         if trainer is not None:
-            # Debounce grade commands to avoid flooding the trainer
-            if last_grade is None or abs(grade - last_grade) > GRADE_DEBOUNCE:
-                try:
-                    await trainer.set_grade(grade)
-                    last_grade = grade
-                except Exception as e:
-                    log.warning("Failed to set grade: %s", e)
-
-            # Get latest BLE telemetry
             data: BikeData = latest_ref[0] if latest_ref else BikeData()
             speed_kmh = data.speed_kmh or 0.0
             power_w   = data.power_w   or 0
             cadence   = data.cadence   or 0
         else:
-            # Synthetic data for no-trainer mode
-            speed_kmh = 25.0
-            power_w   = 180
-            cadence   = 85
+            speed_kmh = 25.0 if not paused else 0.0
+            power_w   = 180  if not paused else 0
+            cadence   = 85   if not paused else 0
 
-        # Advance rider position based on speed
-        speed_ms = speed_kmh / 3.6
-        if speed_ms > 0:
-            rider_t = min(1.0, rider_t + (speed_ms * TELEMETRY_INTERVAL) / (profile.total_km * 1000))
-
+        # Always broadcast telemetry so the frontend knows we're connected
         await server.broadcast({
             "type":    "telemetry",
             "power":   power_w,
@@ -154,6 +137,21 @@ async def _run_loop(
             "riderT":  round(rider_t, 5),
             "distKm":  round(rider_t * profile.total_km, 3),
         })
+
+        if paused:
+            continue
+
+        # Advance rider position and send grade command only when riding
+        if trainer is not None and (last_grade is None or abs(grade - last_grade) > GRADE_DEBOUNCE):
+            try:
+                await trainer.set_grade(grade)
+                last_grade = grade
+            except Exception as e:
+                log.warning("Failed to set grade: %s", e)
+
+        speed_ms = speed_kmh / 3.6
+        if speed_ms > 0:
+            rider_t = min(1.0, rider_t + (speed_ms * TELEMETRY_INTERVAL) / (profile.total_km * 1000))
 
         # Check milestone proximity and fire events
         _, arrived = check_proximity(lat, lng, milestones, done_ids)
