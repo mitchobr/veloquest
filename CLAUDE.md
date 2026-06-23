@@ -55,7 +55,7 @@ Do not replace this mechanic. Iterate on it.
 ## Directory Structure
 
 ```
-passage/
+veloquest/
 ├── CLAUDE.md                  ← you are here
 ├── README.md
 ├── NEXT_STEPS.md
@@ -67,10 +67,10 @@ passage/
 │   └── src/
 │       ├── main.jsx
 │       ├── components/
-│       │   └── TrainerMap.jsx     ← prototype milestone UI
+│       │   └── TrainerMap.jsx     ← main UI: map, HUD, milestone reveals
 │       └── hooks/
-│           ├── useWebSocket.js    ← TODO: WebSocket connection to backend
-│           └── useRoute.js        ← TODO: route state management
+│           ├── useWebSocket.js    ← WebSocket connection + telemetry parsing
+│           └── useRoute.js        ← route state management
 ├── backend/
 │   ├── main.py                    ← asyncio entry point
 │   ├── requirements.txt
@@ -78,35 +78,57 @@ passage/
 │   │   └── ftms.py                ← FTMS client (bleak)
 │   ├── engine/
 │   │   ├── route.py               ← GPX loading, elevation, grade
-│   │   └── milestone.py           ← milestone proximity logic
+│   │   └── milestone.py           ← milestone proximity (check_by_route_dist)
 │   └── ws/
 │       └── server.py              ← aiohttp WebSocket server
-└── rides/
-    └── paris-seine/
-        ├── route.gpx
-        ├── route.elevation.json   ← pre-fetched, generated at ride load time
-        └── milestones.json
+├── rides/
+│   └── paris-seine/
+│       ├── route.gpx
+│       ├── route.elevation.json   ← generated at first ride load; delete to refresh
+│       └── milestones.json        ← landmark definitions with distKm values
+└── tools/
+    └── update_ride.py             ← recalculate milestone distances after route change
 ```
 
-## Running the Frontend (Prototype / No Trainer Needed)
+## Running the Frontend (Prototype / No Backend Needed)
 
 ```bash
 cd frontend
 npm install
 npm run dev
 # Visit http://localhost:5173
-# Uses simulated telemetry — no BLE, no backend
+# Uses simulated telemetry — no BLE, no backend required
 ```
 
-## Running the Full Stack (Once Backend Is Built)
+## Running the Full Stack
 
 ```bash
-# Terminal 1
-cd backend && python main.py
+# Terminal 1 — backend (auto-discovers BLE trainer; falls back to no-trainer mode)
+source backend/.venv/bin/activate
+python backend/main.py
 
-# Terminal 2
+# Terminal 2 — frontend
 cd frontend && npm run dev
 ```
+
+## Updating a Ride Route
+
+Run this after dropping in a new `route.gpx`:
+
+```bash
+source backend/.venv/bin/activate
+python tools/update_ride.py rides/<ride-name>
+```
+
+What it does:
+1. Reads `route.gpx` and computes cumulative waypoint distances
+2. Finds the nearest route point for each milestone in `milestones.json`
+3. Updates `distKm` in `milestones.json`
+4. Warns if any landmark is >200m from the route (proximity trigger risk)
+5. Deletes the stale `route.elevation.json` (backend regenerates on next start)
+
+After running, copy the printed `distKm` values into the `MILESTONES` constant in
+`frontend/src/components/TrainerMap.jsx` and update the `totalKm` fallback.
 
 ## WebSocket Protocol
 
@@ -122,24 +144,23 @@ cd frontend && npm run dev
 { "type": "milestone_reached", "milestoneId": 2 }
 ```
 
-## Ride Definition Format (Planned)
+## Ride Definition Format
+
+`milestones.json` — one per landmark, distKm computed by `tools/update_ride.py`:
 
 ```json
-{
-  "name": "Paris — Along the Seine",
-  "totalKm": 18,
-  "gpx": "route.gpx",
-  "milestones": [
-    {
-      "id": 1,
-      "lat": 48.8584, "lng": 2.2945,
-      "name": "Eiffel Tower",
-      "distKm": 3.9,
-      "image": "eiffel.jpg",
-      "fact": "Built for the 1889 World's Fair..."
-    }
-  ]
-}
+[
+  {
+    "id": 1,
+    "lat": 48.8584, "lng": 2.2945,
+    "name": "Eiffel Tower",
+    "distKm": 6.176,
+    "image": "eiffel.jpg",
+    "image_credit": "© Photographer / Wikimedia Commons, CC BY-SA 3.0",
+    "image_license": "CC BY-SA 3.0",
+    "fact": "Built as a temporary structure for the 1889 World's Fair..."
+  }
+]
 ```
 
 ## Git Workflow
