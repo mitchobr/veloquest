@@ -115,6 +115,22 @@ class WebSocketServer:
             "name": profile.name,
         })
 
+    async def broadcast_route(self) -> None:
+        """Send the cached route_loaded payload to all currently-connected clients.
+
+        cache_route() only covers clients that connect after the route is ready.
+        This covers clients that were already connected when load_ride was processed.
+        """
+        if not self._route_payload:
+            return
+        disconnected = set()
+        for ws in self._clients:
+            try:
+                await ws.send_str(self._route_payload)
+            except Exception:
+                disconnected.add(ws)
+        self._clients -= disconnected
+
     def clear_route(self) -> None:
         """Clear cached route so new clients don't receive stale route_loaded."""
         self._route_payload = None

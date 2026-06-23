@@ -87,6 +87,7 @@ async def main() -> None:
             log.info("Route ready: %s (%.1f km, %d waypoints)",
                      profile.name, profile.total_km, len(profile.waypoints))
             server.cache_route(profile)
+            await server.broadcast_route()  # send to clients already connected
 
             session = RideSession.new(ride_id)
 
