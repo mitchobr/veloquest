@@ -67,6 +67,7 @@ class WebSocketServer:
         # Callbacks wired by main.py after construction
         self.on_pause: Optional[AsyncCallback] = None
         self.on_resume: Optional[AsyncCallback] = None
+        self.on_abandon: Optional[AsyncCallback] = None
         self.on_mode_change: Optional[Callable[[str], Coroutine]] = None
         self.on_speed_change: Optional[Callable[[float], Coroutine]] = None
 
@@ -243,6 +244,10 @@ class WebSocketServer:
             case "resume":
                 if self.on_resume:
                     await self.on_resume()
+            case "abandon_ride":
+                log.info("Frontend requested ride abandon")
+                if self.on_abandon:
+                    await self.on_abandon()
             case "set_resistance_mode":
                 if self.on_mode_change:
                     await self.on_mode_change(msg.get("mode", "simulation"))

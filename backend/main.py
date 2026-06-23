@@ -145,6 +145,8 @@ async def _run_loop(
     sample_count: int = 0
     elapsed_s: float = 0.0
 
+    abandoned: bool = False
+
     async def on_pause() -> None:
         nonlocal paused
         paused = True
@@ -159,18 +161,24 @@ async def _run_loop(
             log.info("Ride started")
         log.info("Ride resumed")
 
+    async def on_abandon() -> None:
+        nonlocal abandoned
+        abandoned = True
+        log.info("Ride abandoned by user")
+
     async def on_speed_change(multiplier: float) -> None:
         nonlocal demo_speed
         demo_speed = max(1.0, min(10.0, multiplier))
 
     server.on_pause = on_pause
     server.on_resume = on_resume
+    server.on_abandon = on_abandon
     server.on_speed_change = on_speed_change
 
     log.info("Telemetry loop ready (%.0fHz)%s — waiting for resume",
              TELEMETRY_HZ, " [no-trainer]" if trainer is None else "")
 
-    while rider_t < 1.0:
+    while rider_t < 1.0 and not abandoned:
         await asyncio.sleep(TELEMETRY_INTERVAL)
 
         lat, lng = profile.lat_lng_at_t(rider_t)
@@ -232,24 +240,26 @@ async def _run_loop(
             session.milestones_reached.append(mid)
             await server.broadcast({"type": "milestone_reached", "milestoneId": mid})
 
-    # Ride complete — finalise session
     if sample_count > 0:
         session.avg_power_w   = round(power_sum   / sample_count, 1)
         session.avg_cadence   = round(cadence_sum  / sample_count, 1)
         session.avg_speed_kmh = round(speed_sum    / sample_count, 1)
 
-    session.finish(status="completed")
-
-    await server.broadcast({
-        "type":       "ride_complete",
-        "distKm":     session.distance_km,
-        "durationS":  session.duration_s,
-        "avgPowerW":  session.avg_power_w,
-        "avgCadence": session.avg_cadence,
-        "avgSpeedKmh": session.avg_speed_kmh,
-        "milestonesReached": session.milestones_reached,
-    })
-    log.info("Ride complete! %.1f km in %.0fs", session.distance_km, session.duration_s)
+    if abandoned:
+        session.finish(status="abandoned")
+        log.info("Ride abandoned at %.1f km", session.distance_km)
+    else:
+        session.finish(status="completed")
+        await server.broadcast({
+            "type":       "ride_complete",
+            "distKm":     session.distance_km,
+            "durationS":  session.duration_s,
+            "avgPowerW":  session.avg_power_w,
+            "avgCadence": session.avg_cadence,
+            "avgSpeedKmh": session.avg_speed_kmh,
+            "milestonesReached": session.milestones_reached,
+        })
+        log.info("Ride complete! %.1f km in %.0fs", session.distance_km, session.duration_s)
 
 
 if __name__ == "__main__":

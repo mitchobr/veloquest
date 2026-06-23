@@ -182,6 +182,7 @@ export default function TrainerMap({ rideId, onBack }) {
   const [revealSec,      setRevealSec]      = useState(RS)
   const [revealIn,       setRevealIn]       = useState(false)
   const [panelMilestone, setPanelMilestone] = useState(null)
+  const [confirmExit,    setConfirmExit]    = useState(false)
   const [tick,           setTick]           = useState(0)
   const [rideComplete,   setRideComplete]   = useState(null)  // null | ride_complete event payload
 
@@ -413,6 +414,11 @@ export default function TrainerMap({ rideId, onBack }) {
   const onSpeedChange = (v) => {
     setSpeed(v)
     if (isLive) sendMessage({ type: 'set_demo_speed', multiplier: v })
+  }
+
+  const exitRide = () => {
+    if (isLive) sendMessage({ type: 'abandon_ride' })
+    onBack()
   }
 
   // ─── HUD config ────────────────────────────────────────────────────────────
@@ -674,16 +680,42 @@ export default function TrainerMap({ rideId, onBack }) {
 
         {!showSpeedSlider && <div style={{ flex: 1 }} />}
 
-        <button
-          onClick={reset}
-          style={{
-            background: 'transparent', color: '#334155',
-            border: '0.5px solid #1e293b', borderRadius: 7,
-            padding: '6px 12px', fontSize: 11, cursor: 'pointer',
-          }}
-        >
-          Reset
-        </button>
+        {confirmExit ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: '#94a3b8', fontSize: 11 }}>Exit ride?</span>
+            <button
+              onClick={exitRide}
+              style={{
+                background: '#dc2626', color: '#fff',
+                border: 'none', borderRadius: 7,
+                padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Exit
+            </button>
+            <button
+              onClick={() => setConfirmExit(false)}
+              style={{
+                background: 'transparent', color: '#64748b',
+                border: '0.5px solid #1e293b', borderRadius: 7,
+                padding: '6px 12px', fontSize: 11, cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmExit(true)}
+            style={{
+              background: 'transparent', color: '#475569',
+              border: '0.5px solid #1e293b', borderRadius: 7,
+              padding: '6px 12px', fontSize: 11, cursor: 'pointer',
+            }}
+          >
+            Exit Ride
+          </button>
+        )}
 
         <span style={{ color: '#1e3a5f', fontSize: 10, fontStyle: 'italic' }}>
           VeloQuest · {totalKm.toFixed(0)} km
